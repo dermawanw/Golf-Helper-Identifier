@@ -73,3 +73,6 @@ Thumbs.db
 # ========================
 coverage/
 .nyc_output/
+
+# Python virtual environment
+.venv/

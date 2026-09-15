@@ -32,7 +32,7 @@ COPY server/ ./server/
 
 # Copy startup script
 COPY start.sh ./
-RUN chmod +x start.sh
+RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 
 # Expose Node.js port (Render/Railway will route traffic here)
 EXPOSE 5000
