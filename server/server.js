@@ -129,6 +129,7 @@ async function triggerAIAnalysis(videoId, playerId) {
   if (!video) return;
 
   video.status = 'processing';
+  delete video.analysisError;
   writeDB(db);
   broadcast('VIDEO_UPDATE', { videoId, status: 'processing' });
   
@@ -224,67 +225,25 @@ async function triggerAIAnalysis(videoId, playerId) {
        throw new Error(result.message || "Unknown Python error");
     }
   } catch (error) {
-    console.error('[AI Engine] Python backend unavailable, using fallback analysis:', error.message);
-    applyFallbackAnalysis(videoId, playerId);
-  }
-}
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[AI Engine] Analysis failed:', message);
 
-function applyFallbackAnalysis(videoId, playerId) {
-  const score = randomBetween(65, 95);
-  const db = readDB();
-  const video = db.videos.find(v => v.id === videoId);
-  if (!video) return;
+    const failedDb = readDB();
+    const failedVideo = failedDb.videos.find(v => v.id === videoId);
+    if (!failedVideo) return;
 
-  video.status = 'analyzed';
+    failedVideo.status = 'failed';
+    failedVideo.analysisError = 'Analisis tidak dapat diselesaikan. Silakan coba lagi.';
+    writeDB(failedDb);
 
-  const newAnalysis = {
-    id: `analysis_${Date.now()}`,
-    videoId,
-    swingScore: score,
-    swingPhases: [
-      { phase: 'address', score: score + 2, feedback: 'Posture seimbang.' },
-      { phase: 'backswing', score: score - 4, feedback: 'Jaga lengan tetap lurus.' },
-      { phase: 'downswing', score: score + 1, feedback: 'Transisi pinggul baik.' },
-      { phase: 'impact', score: score - 2, feedback: 'Face alignment perlu disesuaikan.' },
-      { phase: 'follow-through', score: score + 3, feedback: 'Stabilitas akhir ayunan solid.' }
-    ],
-    recommendation: [
-      'Latihan alignment sticks untuk postur address',
-      'Drill rotasi pinggul untuk power lebih besar'
-    ],
-    injuryRiskScore: randomBetween(10, 40),
-    injuryRiskAreas: ['Lower back'],
-    keypointsDetected: 33,
-    poseKeyframes: [],
-    poseSource: 'fallback',
-    createdAt: new Date().toISOString().split('T')[0]
-  };
-
-  db.analysis.unshift(newAnalysis);
-
-  const player = db.players.find(p => p.id === playerId);
-  if (player) {
-    player.totalVideos = db.videos.filter(v => v.playerId === playerId).length;
-    const playerAnalyses = db.analysis.filter(a => {
-      const v = db.videos.find(vid => vid.id === a.videoId);
-      return v && v.playerId === playerId;
+    broadcast('VIDEO_UPDATE', {
+      videoId,
+      status: 'failed',
+      analysisError: failedVideo.analysisError
     });
-    if (playerAnalyses.length > 0) {
-      player.avgScore = Math.round(playerAnalyses.reduce((acc, a) => acc + a.swingScore, 0) / playerAnalyses.length);
-    }
   }
-
-  recalculateLeaderboard(db);
-  writeDB(db);
-
-  broadcast('VIDEO_UPDATE', {
-    videoId,
-    status: 'analyzed',
-    analysis: newAnalysis,
-    leaderboard: db.leaderboard,
-    players: db.players
-  });
 }
+
 
 function recalculateLeaderboard(db) {
   // Filter to only include players who have at least one analyzed video in database
@@ -308,11 +267,6 @@ function recalculateLeaderboard(db) {
       trend
     };
   });
-}
-
-// Math utils
-function randomBetween(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function pickRandom(arr, count) {

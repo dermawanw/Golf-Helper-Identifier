@@ -247,14 +247,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 break;
 
               case 'VIDEO_UPDATE':
-                setVideos(prev => prev.map(v => v.id === payload.videoId ? { ...v, status: payload.status } : v));
-                
+                setVideos(prev =>
+                  prev.map(video =>
+                    video.id === payload.videoId
+                      ? {
+                          ...video,
+                          status: payload.status,
+                          analysisError: payload.analysisError
+                        }
+                      : video
+                  )
+                );
+
                 if (payload.status === 'processing') {
                   toast({
                     title: 'Analyzing Swing',
                     description: 'Your swing video is currently being processed by our AI Engine...',
                   });
                 }
+
+                if (payload.status === 'failed') {
+                  toast({
+                    title: 'Analisis gagal',
+                    description:
+                      payload.analysisError ||
+                      'Analisis tidak dapat diselesaikan. Silakan coba lagi.',
+                    variant: 'destructive',
+                  });
+                }
+
                 
                 if (payload.status === 'analyzed' && payload.analysis) {
                   // Add analysis report
@@ -376,70 +397,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Failed uploading video to backend:', e);
     }
 
-    // Offline fallback when backend is unreachable
-    const videoId = `v_${Date.now()}`;
-    const newVideo: SwingVideo = {
-      id: videoId,
-      playerId: user.id,
-      uploadDate: new Date().toISOString().split('T')[0],
-      status: 'uploaded',
-      duration,
-      thumbnail: '',
-      title,
-      videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-golf-player-swinging-his-driver-at-the-range-31580-large.mp4"
-    };
-
-    setVideos(prev => [newVideo, ...prev]);
-
-    // Offline automatic status transition simulation
-    setTimeout(() => {
-      setVideos(prev => prev.map(v => v.id === videoId ? { ...v, status: 'processing' } : v));
-      toast({
-        title: 'Analyzing Swing (Offline Mode)',
-        description: 'Processing video swing elements...',
-      });
-
-      setTimeout(() => {
-        const score = Math.floor(Math.random() * (95 - 65 + 1)) + 65;
-        const newAnalysis: AnalysisResult = {
-          id: `analysis_${Date.now()}`,
-          videoId,
-          swingScore: score,
-          swingPhases: [
-            { phase: 'address', score: score + 2, feedback: 'Balanced posture.' },
-            { phase: 'backswing', score: score - 4, feedback: 'Keep arms fully extended.' },
-            { phase: 'downswing', score: score + 1, feedback: 'Excellent lag.' },
-            { phase: 'impact', score: score - 2, feedback: 'Face alignment is slightly off.' },
-            { phase: 'follow-through', score: score + 3, feedback: 'Solid weight transition.' }
-          ],
-          recommendation: ['Practice alignment sticks', 'Strengthen rotation drills'],
-          injuryRiskScore: Math.floor(Math.random() * 30) + 10,
-          injuryRiskAreas: ['Lower back'],
-          keypointsDetected: 33,
-          createdAt: new Date().toISOString().split('T')[0]
-        };
-
-        setVideos(prev => prev.map(v => v.id === videoId ? { ...v, status: 'analyzed' } : v));
-        setAnalysis(prev => [newAnalysis, ...prev]);
-
-        // Update player total video count
-        setPlayers(prev => prev.map(p => {
-          if (p.id === user.id) {
-            const totalVids = videos.filter(v => v.playerId === user.id).length + 1;
-            return { ...p, totalVideos: totalVids, avgScore: Math.round((p.avgScore + score) / 2) };
-          }
-          return p;
-        }));
-
-        toast({
-          title: 'AI Analysis Ready (Offline)',
-          description: `Analysis completed! Score: ${score}/100`,
-        });
-
-      }, 4000);
-    }, 2000);
-
-    return { success: true, videoId };
+    return { success: false };
   };
 
   const deleteVideo = async (id: string): Promise<boolean> => {

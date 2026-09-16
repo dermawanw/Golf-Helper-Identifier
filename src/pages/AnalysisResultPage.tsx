@@ -23,13 +23,13 @@ const normalizeAnalysis = (raw: AnalysisResult | undefined): AnalysisResult | nu
 
 const AnalysisResultPage: React.FC = () => {
   const { videoId } = useParams();
-  const { analysis: allAnalysis, feedback: allFeedback, videos, syncVideoAnalysis, loading } = useData();
+  const { analysis: allAnalysis, feedback: allFeedback, videos, reanalyzeVideo, syncVideoAnalysis, loading } = useData();
   const analysis = normalizeAnalysis(allAnalysis.find(a => a.videoId === videoId));
   const videoItem = videos.find(v => v.id === videoId);
   const feedback = allFeedback.filter(f => f.videoId === videoId);
 
   useEffect(() => {
-    if (!videoId || analysis) return;
+    if (!videoId || analysis || videoItem?.status === 'failed') return;
 
     let cancelled = false;
 
@@ -44,7 +44,7 @@ const AnalysisResultPage: React.FC = () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [videoId, analysis, syncVideoAnalysis]);
+  }, [videoId, analysis, videoItem?.status, syncVideoAnalysis]);
 
   if (!analysis) {
     if (loading && !videoItem) {
@@ -57,23 +57,59 @@ const AnalysisResultPage: React.FC = () => {
     }
 
     if (videoItem) {
-      const isProcessing = videoItem.status === 'processing' || videoItem.status === 'uploaded';
+      if (videoItem.status === 'failed') {
+        return (
+          <div className="golf-card max-w-3xl mx-auto text-center py-16 flex flex-col items-center gap-4">
+            <AlertTriangle className="w-14 h-14 text-destructive" />
+            <h1 className="font-display text-2xl font-bold">Analisis gagal</h1>
+            <p className="text-muted-foreground max-w-md">
+              {videoItem.analysisError ||
+                'Analisis tidak dapat diselesaikan. Silakan coba lagi.'}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                className="golf-btn-primary"
+                onClick={() => void reanalyzeVideo(videoItem.id)}
+              >
+                Coba Lagi
+              </button>
+              <Link to="/videos" className="golf-btn-secondary">
+                Kembali ke My Videos
+              </Link>
+            </div>
+          </div>
+        );
+      }
+
+      const isProcessing =
+        videoItem.status === 'processing' || videoItem.status === 'uploaded';
+
       return (
         <div className="space-y-6 max-w-5xl mx-auto">
-          <Link to="/videos" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link
+            to="/videos"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft size={16} /> Back to Videos
           </Link>
           <div>
             <h1 className="font-display text-3xl font-bold">Swing Analysis</h1>
             <p className="text-muted-foreground text-sm">
-              {isProcessing ? 'Sedang memproses video...' : 'Menunggu hasil analisis...'} • {videoItem.uploadDate}
+              {isProcessing
+                ? 'Sedang memproses video...'
+                : 'Menunggu hasil analisis...'}{' '}
+              • {videoItem.uploadDate}
             </p>
           </div>
           <div className="golf-card text-center py-16 min-h-[360px] flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-14 h-14 text-gold animate-spin" />
-            <h2 className="font-display text-2xl font-bold">Sedang Menganalisis Ayunan...</h2>
+            <h2 className="font-display text-2xl font-bold">
+              Sedang Menganalisis Ayunan...
+            </h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              AI sedang mendeteksi kerangka (skeleton) ayunan Anda. Hasil akan muncul otomatis di halaman ini.
+              AI sedang mendeteksi kerangka (skeleton) ayunan Anda. Hasil akan
+              muncul otomatis di halaman ini.
             </p>
           </div>
         </div>

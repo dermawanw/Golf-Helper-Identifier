@@ -42,6 +42,7 @@ export interface SwingVideo {
   thumbnail: string;
   title: string;
   videoUrl?: string;
+  analysisError?: string;
 }
 
 export interface AnalysisResult {
